@@ -27,3 +27,7 @@ Thumbs.db
 
 # VSCode settings
 .vscode/
+
+# Ignore model files in backend
+backend/*.h5
+backend/*.pkl
