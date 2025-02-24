@@ -70,11 +70,11 @@ Move the generated `.pkl` and `.h5` files from `model_core` to the `backend` fol
 #### g. Deactivate the Virtual Environment
 - **Windows:**
   ```bash
-  venv\Scripts\deactivate
+  deactivate
   ```
 - **macOS/Linux:**
   ```bash
-  source venv/bin/deactivate
+  deactivate
   ```
 ---
 
