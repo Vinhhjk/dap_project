@@ -33,9 +33,10 @@ backend/*.h5
 backend/*.pkl
 
 # Allow all files inside frontend except node_modules
+!frontend/
 !frontend/**
-!frontend/src/**
-!frontend/public/**
+
+# Ensure specific files are not ignored
 !frontend/*.json
 !frontend/*.md
 !frontend/*.js
