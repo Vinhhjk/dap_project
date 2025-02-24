@@ -5,7 +5,7 @@ This project involves a toxicity detection model with a Flask backend API and a 
 
 ### This is the project for DAP391m assignment - FPT University SP25
 #### Team members:
-- BùiTấn Phát - SE194343 
+- Bùi Tấn Phát - SE194343 
 - Nguyễn Quang Vinh - SE194197
 - Nguyễn Trần Minh Quân - SE194342
 - Nguyễn Quách Lam Giang - SE194447
