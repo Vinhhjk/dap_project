@@ -31,3 +31,11 @@ Thumbs.db
 # Ignore model files in backend
 backend/*.h5
 backend/*.pkl
+
+# Allow all files inside frontend except node_modules
+!frontend/**
+!frontend/src/**
+!frontend/public/**
+!frontend/*.json
+!frontend/*.md
+!frontend/*.js
