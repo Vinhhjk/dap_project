@@ -6,6 +6,8 @@ from tensorflow.keras.layers import TextVectorization
 import pickle
 import numpy as np
 from typing import List
+from comments_scrapper import get_comments
+
 
 # Load vectorizer config and vocab instead of the entire object
 with open('vectorizer.pkl', 'rb') as f:
@@ -61,7 +63,6 @@ async def predict(request: TextRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-from comments_scrapper import get_comments
 
 class YouTubeRequest(BaseModel):
     links: List[str]
