@@ -23,9 +23,7 @@ def main():
     precision, recall, accuracy = evaluator.evaluate(test)
     print(f"Precision: {precision}, Recall: {recall}, Accuracy: {accuracy}")
 
-    # Test Prediction
-    sample_text = ['You freaking suck! I am going to hit you.']
-    print(f"Prediction for sample text: {evaluator.predict(sample_text)}")
+    
 
 
 if __name__ == "__main__":

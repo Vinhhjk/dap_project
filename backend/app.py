@@ -60,3 +60,42 @@ async def predict(request: TextRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+from comments_scrapper import get_comments
+
+class YouTubeRequest(BaseModel):
+    links: List[str]
+
+@app.post("/analyze-youtube/")
+async def analyze_youtube_comments(request: YouTubeRequest):
+    try:
+        all_comments = []
+        
+        # Process each YouTube link
+        for video_url in request.links:
+            comments = get_comments(video_url)
+            if comments:
+                all_comments.extend(comments)
+        
+        if not all_comments:
+            raise HTTPException(status_code=400, detail="Could not retrieve comments from any video")
+
+        # Vectorize all comments
+        vectorized_comments = vectorizer(all_comments)
+        
+        # Get predictions
+        predictions = model.predict(vectorized_comments)
+        binary_predictions = (predictions > 0.5).astype(int).tolist()
+        
+        # Return results
+        return {
+            "predictions": [
+                {
+                    "text": comment,
+                    "prediction": pred
+                }
+                for comment, pred in zip(all_comments, binary_predictions)
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

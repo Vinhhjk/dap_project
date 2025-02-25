@@ -9,6 +9,7 @@ function App() {
   const [fileError, setFileError] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState(null);
+  const [inputMode, setInputMode] = useState("manual"); // "manual" or "links"
 
   const detailsRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -29,10 +30,17 @@ function App() {
   }, [predictions]);
 
   const parseInputText = (text) => {
-    return text
-      .split(/[\n,|]+/)
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
+    if (inputMode === "manual") {
+      return text
+        .split(/[\n,|]+/)
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+    } else { // links mode
+      return text
+        .split(/[\n]+/)
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+    }
   };
 
   const handleClear = () => {
@@ -43,6 +51,19 @@ function App() {
     setShowDetails(false);
     setUploadedFileName(null); // Clear the filename
 
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleInputModeChange = (mode) => {
+    setInputMode(mode);
+    setText("");
+    setPredictions(null);
+    setError(null);
+    setFileError(null);
+    setUploadedFileName(null);
+    
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -136,25 +157,39 @@ function App() {
     setIsLoading(true);
     setError(null);
     
-    const texts = parseInputText(text);
+    const inputs = parseInputText(text);
     
-    if (texts.length === 0) {
-      setError("Please enter at least one comment to analyze");
+    if (inputs.length === 0) {
+      setError(`Please enter at least one ${inputMode === "manual" ? "comment" : "link"} to analyze`);
       setIsLoading(false);
       return;
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/predict/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ texts }),
-      });
+      let response;
+      
+      if (inputMode === "manual") {
+        // Use existing endpoint for manual comment analysis
+        response = await fetch("http://127.0.0.1:8000/predict/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ texts: inputs }),
+        });
+      } else {
+        // Use YouTube analysis endpoint for links
+        response = await fetch("http://127.0.0.1:8000/analyze-youtube/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ links: inputs }),
+        });
+      }
       
       if (!response.ok) {
-        throw new Error("Failed to analyze comments");
+        throw new Error(`Failed to analyze ${inputMode === "manual" ? "comments" : "YouTube links"}`);
       }
       
       const data = await response.json();
@@ -188,6 +223,34 @@ function App() {
 
   const renderForm = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Input Mode Selector */}
+      <div className="flex justify-center mb-2">
+        <div className="inline-flex rounded-md shadow-sm" role="group">
+          <button
+            type="button"
+            className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+              inputMode === 'manual' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => handleInputModeChange('manual')}
+          >
+            Manual Input
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+              inputMode === 'links' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => handleInputModeChange('links')}
+          >
+            YouTube Links
+          </button>
+        </div>
+      </div>
+
       <div 
         ref={dropZoneRef}
         className={`relative border-2 border-dashed rounded-lg transition-colors ${
@@ -210,11 +273,9 @@ function App() {
             rows="5"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Enter one or multiple comments to analyze...
-      You can separate comments using:
-      - New lines
-      - Commas
-      - Pipe symbol (|)"
+            placeholder={inputMode === "manual" 
+              ? "Enter one or multiple comments to analyze...\nYou can separate comments using:\n- New lines\n- Commas\n- Pipe symbol (|)" 
+              : "Enter YouTube links to analyze (one per line)"}
             className={`w-full p-3 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none border-none bg-transparent ${
               isDragging ? "pointer-events-none" : ""
             }`}
@@ -228,7 +289,7 @@ function App() {
       </div>
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
-          {parseInputText(text).length} comment(s) detected
+          {parseInputText(text).length} {inputMode === "manual" ? "comment" : "link"}(s) detected
         </p>
         <div className="relative">
           <input
@@ -340,7 +401,7 @@ function App() {
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">
-                  Total comments analyzed: {stats.totalComments}
+                  Total {inputMode === "manual" ? "comments" : "videos"} analyzed: {stats.totalComments}
                 </p>
                 <div className="space-y-4">
                   {stats.stats.map((stat) => (
@@ -368,7 +429,9 @@ function App() {
                   <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                     {predictions.map((item, idx) => (
                       <div key={idx} className="p-4 border rounded-lg">
-                        <p className="font-medium mb-2">Comment {idx + 1}:</p>
+                        <p className="font-medium mb-2">
+                          {inputMode === "manual" ? `Comment ${idx + 1}:` : `Video ${idx + 1}:`}
+                        </p>
                         <p className="text-gray-600 mb-3">{item.text}</p>
                         <div className="grid grid-cols-2 gap-2">
                           {labels.map((label, labelIdx) => (
