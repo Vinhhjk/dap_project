@@ -18,4 +18,3 @@ class Evaluator:
         input_text = self.vectorizer(texts)
         predictions = (self.model.predict(input_text) > 0.5).astype(int)
         return predictions
-
