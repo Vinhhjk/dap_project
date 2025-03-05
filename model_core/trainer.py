@@ -4,7 +4,7 @@ class Trainer:
         self.train_data = train_data
         self.val_data = val_data
 
-    def train(self, epochs=1):
+    def train(self, epochs=7):
         history = self.model.fit(self.train_data, epochs=epochs, validation_data=self.val_data)
         return history
 
