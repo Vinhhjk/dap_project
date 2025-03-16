@@ -18,24 +18,30 @@ function App() {
     }
   }, []);
 
-  const handleLogin = async (response) => {
-    const decoded = jwtDecode(response.credential);
-    
-    // Generate a unique ID for new users
-    const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const userData = {
-      name: decoded.name,
-      picture: decoded.picture,
-      email: decoded.email,
-      userId: uniqueId
-
-    };
-    console.log(userData);
+  const handleLogin = async (tokenResponse) => {
     try {
+      // Fetch user info using the access token
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: {
+          Authorization: `Bearer ${tokenResponse.access_token}`,
+        },
+      });
+      
+      const userInfo = await userInfoResponse.json();
+      
+      // Generate a unique ID for new users
+      const uniqueId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const userData = {
+        name: userInfo.name,
+        picture: userInfo.picture,
+        email: userInfo.email,
+        userId: uniqueId
+      };
+      
       // Check if user exists by email
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', decoded.email));
+      const q = query(usersRef, where('email', '==', userInfo.email));
       const querySnapshot = await getDocs(q);
   
       if (querySnapshot.empty) {
@@ -62,7 +68,7 @@ function App() {
       setIsAuthenticated(true);
       localStorage.setItem('user', JSON.stringify(userData));
     } catch (error) {
-      console.error('Firebase error:', error);
+      console.error('Authentication error:', error);
     }
   };
   

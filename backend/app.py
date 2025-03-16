@@ -8,7 +8,6 @@ import numpy as np
 from typing import List
 from comments_scrapper import get_comments
 
-
 # Load vectorizer config and vocab instead of the entire object
 with open('vectorizer.pkl', 'rb') as f:
     config, vocab = pickle.load(f)
@@ -19,6 +18,10 @@ vectorizer.set_vocabulary(vocab)
 
 # Load trained model
 model = load_model('toxicity.h5')
+# Add this near the top of the file with other imports and configurations
+# Define class-specific thresholds
+THRESHOLDS = [0.5, 0.4, 0.5, 0.3, 0.5, 0.4]
+CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
 
 # Set up FastAPI app
 app = FastAPI()
@@ -46,27 +49,35 @@ async def predict(request: TextRequest):
 
         # Make predictions for all texts
         predictions = model.predict(vectorized_texts)
-                # Print raw predictions before converting to binary
+        
+        # Print raw predictions before converting to binary
         for text, raw_pred in zip(request.texts, predictions):
             print(f"Comment: {text}")
             print(f"Prediction : {[float(f'{x:.2f}') for x in raw_pred]}")
             print("-" * 50)
-        # Convert predictions to binary and return
-        binary_predictions = (predictions > 0.5).astype(int).tolist()
+        
+        # Apply class-specific thresholds instead of fixed 0.5
+        binary_predictions = []
+        for pred in predictions:
+            # Apply each threshold to the corresponding class prediction
+            binary_pred = [(float(pred[i]) > THRESHOLDS[i]) for i in range(len(THRESHOLDS))]
+            binary_predictions.append([int(x) for x in binary_pred])
         
         # Return predictions with original texts
         return {
             "predictions": [
                 {
                     "text": text,
-                    "prediction": pred
+                    "prediction": pred,
+                    "raw_scores": [float(f'{x:.4f}') for x in raw_pred],
+                    "class_names": CLASS_NAMES
                 }
-                for text, pred in zip(request.texts, binary_predictions)
+                for text, pred, raw_pred in zip(request.texts, binary_predictions, predictions)
             ]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 
 class YouTubeRequest(BaseModel):
     links: List[str]
@@ -83,14 +94,23 @@ async def analyze_youtube_comments(request: YouTubeRequest):
             # Process in smaller batches
             batch_size = 32
             all_predictions = []
+            all_raw_scores = []
             
             for i in range(0, len(regular_comments), batch_size):
                 batch = regular_comments[i:i + batch_size]
                 vectorized = vectorizer(batch).numpy()
                 batch_predictions = model.predict(vectorized, batch_size=batch_size, verbose=0)
-                # Convert to binary predictions based on 0.5 threshold
-                binary_predictions = (batch_predictions > 0.5).astype(int)
-                all_predictions.extend(binary_predictions.tolist())
+                
+                # Store raw scores
+                all_raw_scores.extend(batch_predictions.tolist())
+                
+                # Apply class-specific thresholds
+                binary_batch = []
+                for pred in batch_predictions:
+                    binary_pred = [(float(pred[i]) > THRESHOLDS[i]) for i in range(len(THRESHOLDS))]
+                    binary_batch.append([int(x) for x in binary_pred])
+                
+                all_predictions.extend(binary_batch)
             
             result = {
                 "video_url": video_url,
@@ -103,9 +123,11 @@ async def analyze_youtube_comments(request: YouTubeRequest):
                 "comments": [
                     {
                         "text": comment,
-                        "prediction": pred
+                        "prediction": pred,
+                        "raw_scores": [float(f'{x:.4f}') for x in raw],
+                        "class_names": CLASS_NAMES
                     }
-                    for comment, pred in zip(regular_comments, all_predictions)
+                    for comment, pred, raw in zip(regular_comments, all_predictions, all_raw_scores)
                 ]
             }
             all_results.append(result)

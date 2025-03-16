@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from './Sidebar';
 import { db } from '../firebase/config';
 import { collection, addDoc, query, getDocs, orderBy } from 'firebase/firestore';
-
+import ToxicPieChart from "./ToxicPieChart";
 function ToxicDetector({ user, onLogout  }) {
   const [text, setText] = useState("");
   const [predictions, setPredictions] = useState(null);
@@ -473,43 +473,81 @@ function ToxicDetector({ user, onLogout  }) {
     </form>
   );
 
+// Add this function to your ToxicDetector component
+const handleOutsideClick = (e) => {
+  // Check if sidebar is open and the click is outside the sidebar
+  if (isSidebarOpen && e.target.closest('.sidebar') === null) {
+    setIsSidebarOpen(false);
+  }
+};
+
+// Add useEffect to set up and clean up the event listener
+useEffect(() => {
+  if (isSidebarOpen) {
+    // Add event listener when sidebar opens
+    document.addEventListener('mousedown', handleOutsideClick);
+  }
+  
+  // Clean up function to remove event listener
+  return () => {
+    document.removeEventListener('mousedown', handleOutsideClick);
+  };
+}, [isSidebarOpen]); // Only re-run when isSidebarOpen changes
 
   return (
-    <div className="min-h-screen bg-gray-100 py-4">
-      <Sidebar 
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(!isSidebarOpen)}
-        chatHistory={chatHistory}
-        onChatSelect={handleChatSelect}
-        onNewChat={handleNewChat}
-      />
-      
+<div 
+  className="min-h-screen py-4 relative" // Add 'relative' here
+  style={{
+    backgroundImage: 'url("/background.png")',
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    width: "100%",
+    height: "100vh",
+    overflowY: "auto"
+  }}
+>
+<Sidebar 
+    isOpen={isSidebarOpen} 
+    onClose={() => setIsSidebarOpen(false)}
+    chatHistory={chatHistory}
+    onChatSelect={handleChatSelect}
+    onNewChat={handleNewChat}
+  />
+  
       {/* Header with navigation and user controls */}
       <div className="flex justify-between items-center px-4 mb-6">
       {/* Left side - Toggle sidebar and New Chat */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="bg-white rounded-lg shadow-md p-2 hover:bg-gray-50"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-        
-        {/* Only show New Chat button when sidebar is closed */}
-        {!isSidebarOpen && (
-          <button
-            onClick={handleNewChat}
-            title="New Chat"
-            className="flex items-center bg-white rounded-lg shadow-md p-2 space-x-2 hover:bg-gray-50 transition-all duration-300"
-          >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-          </svg>
-          </button>
-        )}
-      </div>
+{/* Left side - Toggle sidebar and New Chat */}
+<div className="flex items-center gap-2">
+  {/* Only show hamburger button when sidebar is closed */}
+  {!isSidebarOpen && (
+    <button
+      onClick={() => setIsSidebarOpen(true)}
+      className="bg-white rounded-lg shadow-md p-2 hover:bg-gray-50"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  )}
+  
+  {/* Only show New Chat button when sidebar is closed */}
+  {!isSidebarOpen && (
+    <button
+      onClick={handleNewChat}
+      title="New Chat"
+      className="flex items-center bg-white rounded-lg shadow-md p-2 space-x-2 hover:bg-gray-50 transition-all duration-300"
+    >
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+      </svg>
+    </button>
+  )}
+</div>
+
 
         {/* Right side - User account dropdown */}
         <div className="relative">
@@ -554,7 +592,6 @@ function ToxicDetector({ user, onLogout  }) {
       
       <div className="max-w-6xl mx-auto px-4">
         <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">💬 Toxic Comment Detector</h1>
-        
         {!predictions ? (
           <div className="flex justify-center">
             <div className="w-full max-w-lg">
@@ -580,37 +617,40 @@ function ToxicDetector({ user, onLogout  }) {
             </div>
 
             <div className="md:col-span-2 space-y-4">
-              <div className="bg-white p-6 rounded-2xl shadow-lg">
-                {videoResults && videoResults.length > 1 && (
-                  <div className="mb-4">
-                    <select 
-                      className="w-full p-2 border rounded-lg"
-                      onChange={(e) => {
-                        const idx = parseInt(e.target.value);
-                        setPredictions(videoResults[idx].comments);
-                      }}
-                    >
-                      {videoResults.map((result, idx) => (
-                        <option key={idx} value={idx}>
-                          Video {idx + 1}: {result.video_url}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold text-gray-700">📊 Analysis Summary</h2>
-                  <button
-                    onClick={() => setShowDetails(!showDetails)}
-                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
+            <div className="bg-white p-6 rounded-2xl shadow-lg">
+              {videoResults && videoResults.length > 1 && (
+                <div className="mb-4">
+                  <select 
+                    className="w-full p-2 border rounded-lg"
+                    onChange={(e) => {
+                      const idx = parseInt(e.target.value);
+                      setPredictions(videoResults[idx].comments);
+                    }}
                   >
-                    {showDetails ? 'Hide Details' : 'Show Details'}
-                  </button>
+                    {videoResults.map((result, idx) => (
+                      <option key={idx} value={idx}>
+                        Video {idx + 1}: {result.video_url}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <p className="text-sm text-gray-500 mb-4">
-                  Total {inputMode === "manual" ? "comments" : "comments"} analyzed: {stats.totalComments}
-                </p>
-                <div className="space-y-4">
+              )}
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-700">📊 Analysis Summary</h2>
+                <button
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
+                >
+                  {showDetails ? 'Hide Details' : 'Show Details'}
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Total {inputMode === "manual" ? "comments" : "comments"} analyzed: {stats.totalComments}
+              </p>
+              {/* New layout with flex to place pie chart next to bars */}
+              <div className="flex flex-col md:flex-row gap-6">
+                {/* Left side - Percentage bars */}
+                <div className="space-y-4 md:w-1/2">
                   {stats.stats.map((stat) => (
                     <div key={stat.label}>
                       <div className="flex justify-between mb-1">
@@ -619,47 +659,52 @@ function ToxicDetector({ user, onLogout  }) {
                           {stat.count} ({stat.percentage}%)
                         </span>
                       </div>
-                      <div className="h-2 bg-gray-200 rounded-full">
+                      <div className="h-3 bg-gray-200 rounded-full">
                         <div
-                          className="h-2 bg-blue-500 rounded-full"
+                          className="h-3 bg-blue-500 rounded-full"
                           style={{ width: `${stat.percentage}%` }}
                         />
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-              {showDetails && (
-                <div ref={detailsRef} className="bg-white p-6 rounded-2xl shadow-lg">
-                  <h2 className="text-xl font-semibold text-gray-700 mb-4">📝 Detailed Results</h2>
-                  <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                    {predictions.map((item, idx) => (
-                      <div key={idx} className="p-4 border rounded-lg">
-                        <p className="font-medium mb-2">
-                          {inputMode === "manual" ? `Comment ${idx + 1}:` : `Comment ${idx + 1}:`}
-                        </p>
-                        <p className="text-gray-600 mb-3">{item.text}</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {labels.map((label, labelIdx) => (
-                            <div
-                              key={label}
-                              className={`p-2 rounded-lg flex justify-between ${
-                                item.prediction[labelIdx] === 1
-                                  ? "bg-red-100 text-red-600"
-                                  : "bg-green-100 text-green-600"
-                              }`}
-                            >
-                              <span>{label}</span>
-                              <span>{item.prediction[labelIdx] === 1 ? "⚠️" : "✅"}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                <div className="md:w-1/2">
+                  <ToxicPieChart stats={stats.stats} predictions={predictions} />
             </div>
+            </div>
+            </div>
+            
+            {showDetails && (
+              <div ref={detailsRef} className="bg-white p-6 rounded-2xl shadow-lg">
+                <h2 className="text-xl font-semibold text-gray-700 mb-4">📝 Detailed Results</h2>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  {predictions.map((item, idx) => (
+                    <div key={idx} className="p-4 border rounded-lg">
+                      <p className="font-medium mb-2">
+                        {inputMode === "manual" ? `Comment ${idx + 1}:` : `Comment ${idx + 1}:`}
+                      </p>
+                      <p className="text-gray-600 mb-3">{item.text}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {labels.map((label, labelIdx) => (
+                          <div
+                            key={label}
+                            className={`p-2 rounded-lg flex justify-between ${
+                              item.prediction[labelIdx] === 1
+                                ? "bg-red-100 text-red-600"
+                                : "bg-green-100 text-green-600"
+                            }`}
+                          >
+                            <span>{label}</span>
+                            <span>{item.prediction[labelIdx] === 1 ? "⚠️" : "✅"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           </div>
         )}
       </div>
