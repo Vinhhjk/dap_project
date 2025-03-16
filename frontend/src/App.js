@@ -29,8 +29,9 @@ function App() {
       picture: decoded.picture,
       email: decoded.email,
       userId: uniqueId
+
     };
-  
+    console.log(userData);
     try {
       // Check if user exists by email
       const usersRef = collection(db, 'users');

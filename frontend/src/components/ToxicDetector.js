@@ -18,7 +18,8 @@ function ToxicDetector({ user, onLogout  }) {
   const detailsRef = useRef(null);
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
-
+  const [videoResults, setVideoResults] = useState(null);
+  
   const labels = ["Toxic", "Severe Toxic", "Obscene", "Threat", "Insult", "Identity Hate"];
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
@@ -29,6 +30,9 @@ function ToxicDetector({ user, onLogout  }) {
     setFileError(null);
     setShowDetails(false);
     setUploadedFileName(null);
+    setIsSidebarOpen(false);
+    setVideoResults(null); 
+
   };
   useEffect(() => {
     const loadChatHistory = async () => {
@@ -56,57 +60,89 @@ function ToxicDetector({ user, onLogout  }) {
       setChatHistory(JSON.parse(savedHistory));
     }
   }, []);
-  
+  // Add this constant at the top of the file
+  const MAX_CHAT_HISTORY = 50; // Limit number of stored chats
+  const compressData = (data) => {
+    return JSON.stringify(data).replace(/\s+/g, '');
+  };
+
+  const decompressData = (data) => {
+    return JSON.parse(data);
+  };
+  // Modify the useEffect that saves to localStorage
   useEffect(() => {
-    localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+    try {
+      const trimmedHistory = chatHistory.slice(0, MAX_CHAT_HISTORY);
+      const compressed = compressData(trimmedHistory);
+      localStorage.setItem('chatHistory', compressed);
+    } catch (error) {
+      const reducedHistory = chatHistory.slice(0, Math.floor(chatHistory.length / 2));
+      const compressed = compressData(reducedHistory);
+      localStorage.setItem('chatHistory', compressed);
+    }
   }, [chatHistory]);
-  
-  // Save chat history
+
+  // Update the loading logic
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('chatHistory');
+    if (savedHistory) {
+      setChatHistory(decompressData(savedHistory));
+    }
+  }, []);
+
   const saveChatHistory = async (predictions) => {
     const chatData = {
       timestamp: new Date().toISOString(),
       predictions: predictions,
-      text: text
+      text: text,
+      videoResults: videoResults,
+      inputMode: inputMode,
+      hasMultipleVideos: videoResults && videoResults.length > 1
     };
     
-    // Create reference to user's chats subcollection
     const userChatsRef = collection(db, 'users', user.userId, 'chats');
     const docRef = await addDoc(userChatsRef, chatData);
     const newChat = { id: docRef.id, ...chatData };
     setChatHistory(prevHistory => [newChat, ...prevHistory]);
   };
   
-  // Handle chat selection
+  
+    // Handle chat selection
   const handleChatSelect = (chat) => {
     setText(chat.text);
     setPredictions(chat.predictions);
+    setVideoResults(chat.videoResults);
+    
+    // Check if this chat had video results before setting the input mode
+    setInputMode(chat.videoResults && chat.videoResults.length > 0 ? "links" : "manual");
+    
     setIsSidebarOpen(false);
   };
-  useEffect(() => {
-    if (showDetails && detailsRef.current) {
-      detailsRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [showDetails]);
+    useEffect(() => {
+      if (showDetails && detailsRef.current) {
+        detailsRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, [showDetails]);
 
-  useEffect(() => {
-    if (predictions) {
-      setShowDetails(false);
-    }
-  }, [predictions]);
+    useEffect(() => {
+      if (predictions) {
+        setShowDetails(false);
+      }
+    }, [predictions]);
 
-  const parseInputText = (text) => {
-    if (inputMode === "manual") {
-      return text
-        .split(/[\n,|]+/)
-        .map(t => t.trim())
-        .filter(t => t.length > 0);
-    } else { // links mode
-      return text
-        .split(/[\n]+/)
-        .map(t => t.trim())
-        .filter(t => t.length > 0);
-    }
-  };
+    const parseInputText = (text) => {
+      if (inputMode === "manual") {
+        return text
+          .split(/[\n,|]+/)
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
+      } else { // links mode
+        return text
+          .split(/[\n]+/)
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
+      }
+    };
 
   const handleClear = () => {
     setText("");
@@ -229,38 +265,47 @@ function ToxicDetector({ user, onLogout  }) {
       setIsLoading(false);
       return;
     }
-
+  
     try {
       let response;
+      let data;
       
       if (inputMode === "manual") {
-        // Use existing endpoint for manual comment analysis
         response = await fetch("http://127.0.0.1:8000/predict/", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ texts: inputs }),
         });
-      } else {
-        // Use YouTube analysis endpoint for links
+        data = await response.json();
+        setPredictions(data.predictions);
+        saveChatHistory(data.predictions);
+      } else if (inputMode === "links") {
         response = await fetch("http://127.0.0.1:8000/analyze-youtube/", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ links: inputs }),
         });
+        data = await response.json();
+        setVideoResults(data.results);
+        
+        // Set initial predictions to first video's comments
+        setPredictions(data.results[0].comments);
+        
+        // Save chat with all video results
+        const chatData = {
+          timestamp: new Date().toISOString(),
+          text: text,
+          videoResults: data.results,
+          inputMode: inputMode,
+          predictions: data.results[0].comments,
+          hasMultipleVideos: data.results.length > 1
+        };
+  
+        const userChatsRef = collection(db, 'users', user.userId, 'chats');
+        const docRef = await addDoc(userChatsRef, chatData);
+        const newChat = { id: docRef.id, ...chatData };
+        setChatHistory(prevHistory => [newChat, ...prevHistory]);
       }
-      
-      if (!response.ok) {
-        throw new Error(`Failed to analyze ${inputMode === "manual" ? "comments" : "YouTube links"}`);
-      }
-      
-      const data = await response.json();
-      setPredictions(data.predictions);
-      setPredictions(data.predictions);
-      saveChatHistory(data.predictions); 
     } catch (error) {
       setError(error.message);
       console.error("Prediction error:", error);
@@ -268,13 +313,14 @@ function ToxicDetector({ user, onLogout  }) {
       setIsLoading(false);
     }
   };
-
+  
   const calculateStats = () => {
     if (!predictions || predictions.length === 0) return null;
-
+  
     const totalComments = predictions.length;
     const stats = labels.map((label, idx) => {
-      const count = predictions.filter(p => p.prediction[idx] === 1).length;
+      const count = predictions.reduce((acc, item) => 
+        acc + (item.prediction[idx] === 1 ? 1 : 0), 0);
       const percentage = ((count / totalComments) * 100).toFixed(1);
       return {
         label,
@@ -282,7 +328,7 @@ function ToxicDetector({ user, onLogout  }) {
         percentage
       };
     });
-
+  
     return { totalComments, stats };
   };
 
@@ -471,11 +517,18 @@ function ToxicDetector({ user, onLogout  }) {
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="flex items-center bg-white rounded-lg shadow-md p-2 space-x-2 hover:bg-gray-50"
           >
-            <img 
-              src={user.picture} 
-              alt="Profile" 
-              className="w-8 h-8 rounded-full"
-            />
+<img 
+  src={user.picture} 
+  alt="Profile" 
+  className="w-8 h-8 rounded-full border-2 border-gray-200"
+  loading="lazy"
+  onError={(e) => {
+    console.log("Image failed to load:", e.target.src);
+    e.target.src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name);
+  }}
+  onLoad={() => console.log("Image loaded successfully")}
+/>
+            
             <span className="text-gray-700 font-medium">{user.name}</span>
             <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
@@ -528,6 +581,23 @@ function ToxicDetector({ user, onLogout  }) {
 
             <div className="md:col-span-2 space-y-4">
               <div className="bg-white p-6 rounded-2xl shadow-lg">
+                {videoResults && videoResults.length > 1 && (
+                  <div className="mb-4">
+                    <select 
+                      className="w-full p-2 border rounded-lg"
+                      onChange={(e) => {
+                        const idx = parseInt(e.target.value);
+                        setPredictions(videoResults[idx].comments);
+                      }}
+                    >
+                      {videoResults.map((result, idx) => (
+                        <option key={idx} value={idx}>
+                          Video {idx + 1}: {result.video_url}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold text-gray-700">📊 Analysis Summary</h2>
                   <button
@@ -538,7 +608,7 @@ function ToxicDetector({ user, onLogout  }) {
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">
-                  Total {inputMode === "manual" ? "comments" : "videos"} analyzed: {stats.totalComments}
+                  Total {inputMode === "manual" ? "comments" : "comments"} analyzed: {stats.totalComments}
                 </p>
                 <div className="space-y-4">
                   {stats.stats.map((stat) => (
@@ -559,7 +629,6 @@ function ToxicDetector({ user, onLogout  }) {
                   ))}
                 </div>
               </div>
-
               {showDetails && (
                 <div ref={detailsRef} className="bg-white p-6 rounded-2xl shadow-lg">
                   <h2 className="text-xl font-semibold text-gray-700 mb-4">📝 Detailed Results</h2>
@@ -567,7 +636,7 @@ function ToxicDetector({ user, onLogout  }) {
                     {predictions.map((item, idx) => (
                       <div key={idx} className="p-4 border rounded-lg">
                         <p className="font-medium mb-2">
-                          {inputMode === "manual" ? `Comment ${idx + 1}:` : `Video ${idx + 1}:`}
+                          {inputMode === "manual" ? `Comment ${idx + 1}:` : `Comment ${idx + 1}:`}
                         </p>
                         <p className="text-gray-600 mb-3">{item.text}</p>
                         <div className="grid grid-cols-2 gap-2">
