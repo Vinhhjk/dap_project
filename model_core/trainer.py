@@ -1,13 +1,12 @@
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 class Trainer:
-    def __init__(self, model, train_data, val_data, class_weights):
+    def __init__(self, model, train_data, val_data):
         self.model = model
         self.train_data = train_data
         self.val_data = val_data
-        self.class_weights = class_weights
 
-    def train(self, epochs=7):
+    def train(self, epochs=15):
         callbacks = [
             EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True),
             ModelCheckpoint(filepath='best_model.h5', save_best_only=True, monitor='val_loss')
@@ -17,9 +16,7 @@ class Trainer:
             epochs=epochs,
             validation_data=self.val_data,
             callbacks=callbacks,
-            # Temporarily remove class weights
-            # class_weight=self.class_weights,
-            shuffle=False
+            shuffle=False,
         )        
         return history
     def save_model(self, path='toxicity.h5'):

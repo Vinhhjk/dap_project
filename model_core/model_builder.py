@@ -22,5 +22,4 @@ class ToxicityModel:
             loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
             optimizer='Adam'
         )
-        return model
-    
+        return model  
