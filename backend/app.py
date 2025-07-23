@@ -8,10 +8,8 @@ import numpy as np
 from typing import List
 from comments_scrapper import get_comments
 
-
-
 # Load vectorizer config and vocab instead of the entire object
-with open('vectorizer.pkl', 'rb') as f: #load vectorizer config and vocab
+with open('vectorizer.pkl', 'rb') as f:
     config, vocab = pickle.load(f)
 
 # Rebuild the vectorizer
