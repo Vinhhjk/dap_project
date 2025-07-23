@@ -21,10 +21,24 @@ class DataLoader:
         return X, y
 
     def preprocess(self, X, y):
+        # Add print statements to debug the data shape
+        print(f"X shape before vectorization: {X.shape}")
+        print(f"y shape: {y.shape}")
+        
         self.vectorizer.adapt(X.values)
         vectorized_text = self.vectorizer(X.values)
+        
+        # Check the vectorized data
+        print(f"Vectorized text shape: {vectorized_text.shape}")
+        print(f"Max index in vectorized text: {tf.reduce_max(vectorized_text)}")
+        
         dataset = tf.data.Dataset.from_tensor_slices((vectorized_text, y))
-        dataset = dataset.cache().shuffle(160000).batch(self.batch_size).prefetch(8)
+        dataset = dataset.cache().shuffle(160000, reshuffle_each_iteration=True).batch(self.batch_size).prefetch(8)
+        
+        # Get the total size of the dataset
+        dataset_size = tf.data.experimental.cardinality(dataset).numpy()
+        print(f"Dataset size (number of batches): {dataset_size}")
+        
         train = dataset.take(int(len(dataset) * .7))
         val = dataset.skip(int(len(dataset) * .7)).take(int(len(dataset) * .2))
         test = dataset.skip(int(len(dataset) * .9)).take(int(len(dataset) * .1))

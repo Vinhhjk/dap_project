@@ -84,13 +84,16 @@ Move the generated `.pkl` and `.h5` files from `model_core` to the `backend` fol
 ```bash
 cd ../backend
 ```
-
-#### b. Install Backend Requirements
+#### b. Create a .env file and add Youtube v3 API Key
+```bash
+YOUTUBE_API_KEY = '' 
+```
+#### c. Install Backend Requirements
 ```bash
 pip install -r requirements.txt
 ```
 
-#### e. Run the Flask API
+#### d. Run the Flask API
 ```bash
 uvicorn app:app --reload
 ```
